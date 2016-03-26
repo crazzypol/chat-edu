@@ -30,12 +30,12 @@
         {
             this.panel1 = new System.Windows.Forms.Panel();
             this.panel2 = new System.Windows.Forms.Panel();
+            this.rtSendMessage = new System.Windows.Forms.RichTextBox();
+            this.bnSendMessage = new System.Windows.Forms.Button();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.lvUsers = new System.Windows.Forms.ListView();
-            this.rtReceiveMessage = new System.Windows.Forms.RichTextBox();
-            this.bnSendMessage = new System.Windows.Forms.Button();
             this.chUsers = new System.Windows.Forms.ColumnHeader();
-            this.rtSendMessage = new System.Windows.Forms.RichTextBox();
+            this.rtReceiveMessage = new System.Windows.Forms.RichTextBox();
             this.panel2.SuspendLayout();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -59,6 +59,25 @@
             this.panel2.Name = "panel2";
             this.panel2.Size = new System.Drawing.Size(577, 66);
             this.panel2.TabIndex = 2;
+            // 
+            // rtSendMessage
+            // 
+            this.rtSendMessage.Location = new System.Drawing.Point(93, 3);
+            this.rtSendMessage.Name = "rtSendMessage";
+            this.rtSendMessage.Size = new System.Drawing.Size(481, 60);
+            this.rtSendMessage.TabIndex = 2;
+            this.rtSendMessage.Text = "";
+            this.rtSendMessage.KeyUp += new System.Windows.Forms.KeyEventHandler(this.rtSendMessage_KeyUp);
+            // 
+            // bnSendMessage
+            // 
+            this.bnSendMessage.Location = new System.Drawing.Point(3, 3);
+            this.bnSendMessage.Name = "bnSendMessage";
+            this.bnSendMessage.Size = new System.Drawing.Size(84, 60);
+            this.bnSendMessage.TabIndex = 0;
+            this.bnSendMessage.Text = "Отправить сообщение";
+            this.bnSendMessage.UseVisualStyleBackColor = true;
+            this.bnSendMessage.Click += new System.EventHandler(this.bnSendMessage_Click);
             // 
             // splitContainer1
             // 
@@ -85,6 +104,7 @@
             this.lvUsers.Dock = System.Windows.Forms.DockStyle.Fill;
             this.lvUsers.FullRowSelect = true;
             this.lvUsers.GridLines = true;
+            this.lvUsers.HideSelection = false;
             this.lvUsers.Location = new System.Drawing.Point(0, 0);
             this.lvUsers.MultiSelect = false;
             this.lvUsers.Name = "lvUsers";
@@ -92,6 +112,11 @@
             this.lvUsers.TabIndex = 0;
             this.lvUsers.UseCompatibleStateImageBehavior = false;
             this.lvUsers.View = System.Windows.Forms.View.Details;
+            // 
+            // chUsers
+            // 
+            this.chUsers.Text = "Пользователи";
+            this.chUsers.Width = 187;
             // 
             // rtReceiveMessage
             // 
@@ -102,29 +127,6 @@
             this.rtReceiveMessage.Size = new System.Drawing.Size(381, 416);
             this.rtReceiveMessage.TabIndex = 0;
             this.rtReceiveMessage.Text = "";
-            // 
-            // bnSendMessage
-            // 
-            this.bnSendMessage.Location = new System.Drawing.Point(3, 3);
-            this.bnSendMessage.Name = "bnSendMessage";
-            this.bnSendMessage.Size = new System.Drawing.Size(84, 60);
-            this.bnSendMessage.TabIndex = 0;
-            this.bnSendMessage.Text = "Отправить сообщение";
-            this.bnSendMessage.UseVisualStyleBackColor = true;
-            this.bnSendMessage.Click += new System.EventHandler(this.bnSendMessage_Click);
-            // 
-            // chUsers
-            // 
-            this.chUsers.Text = "Пользователи";
-            this.chUsers.Width = 187;
-            // 
-            // rtSendMessage
-            // 
-            this.rtSendMessage.Location = new System.Drawing.Point(93, 3);
-            this.rtSendMessage.Name = "rtSendMessage";
-            this.rtSendMessage.Size = new System.Drawing.Size(481, 60);
-            this.rtSendMessage.TabIndex = 2;
-            this.rtSendMessage.Text = "";
             // 
             // frmMain
             // 

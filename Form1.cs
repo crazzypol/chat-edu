@@ -14,49 +14,56 @@ namespace ChatForLan
 {
     public partial class frmMain : Form
     {
-        const string MCASTADDR = "192.167.0.255";
+        const string MCASTADDR = "255.255.255.255";
         const int MCASTPORT = 32760;
         string MYIPADDR;
         
-        ArrayList userList = new ArrayList();
-        bool IsThreadRunning = false;
+        ArrayList userList = new ArrayList(); //Список для хранения и управления именами пользователей
+        bool IsThreadRunning = false; //Переменная управляющая потоком слушателя
         
-        Thread _listener; 
-        //delegate void ChangeUserList();
-        //event ChangeUserList _updateUserList;
+        Thread _listener; //Переменная класса для создания отдельного потока для слушателя сети
 
-        public delegate void AddListItem(string name);
+        //Делегаты для изменения списка пользователя
+        public delegate void AddListItem(string name); 
         public delegate void RemoveListItem(string name);
+        //Переменные на основе делегатов
         public AddListItem myAddListItem;
         public RemoveListItem myRemoveListItem;
 
         public frmMain()
         {
             InitializeComponent();
-
-            myAddListItem = new AddListItem(AddListItemMethod);
+            //Присвоим переменным делегатам реальные функции
+            myAddListItem = new AddListItem(AddListItemMethod); 
             myRemoveListItem = new RemoveListItem(RemoveListItemMethod);
 
+            //Узнаем свой адрес в сети
             IPAddress[] _ipaddrs = Dns.GetHostEntry(GetName()).AddressList;
-            if (_ipaddrs.Length > 1)
-            {
-                MYIPADDR = _ipaddrs[1].ToString();
+            foreach (IPAddress _oneaddr in _ipaddrs) {
+                if (_oneaddr.AddressFamily == AddressFamily.InterNetwork) {
+                    MYIPADDR = _oneaddr.ToString();
+                }
             }
-            else
-            {
-                MYIPADDR = _ipaddrs[0].ToString();
-            }
-
+            //Создаем и запускам отдельный поток-слушатель сети
             _listener = new Thread(new ThreadStart(_ReceiveWorker));
             _listener.Start();
+            //Отправляем широковещательное сообщение о нашем появлении в сети
             string message = "Hello$" + GetName();
             MulticastSend(MCASTADDR, MCASTPORT, message);
         }
 
+        /// <summary>
+        /// Поток-слушатель сети
+        /// Функция передается в ThreadStart
+        /// </summary>
         private void _ReceiveWorker() {
             Receive(MYIPADDR, MCASTPORT);
         }
 
+        /// <summary>
+        /// Добавление пользователя в список пользователей чата
+        /// </summary>
+        /// <param name="name"></param>
         void AddListItemMethod(string name)
         {
             if (lvUsers.InvokeRequired)
@@ -71,6 +78,10 @@ namespace ChatForLan
       
         }
 
+        /// <summary>
+        /// Удаление пользователя из списка пользователей чата
+        /// </summary>
+        /// <param name="name"></param>
         void RemoveListItemMethod(string name)
         {
             if (lvUsers.InvokeRequired)
@@ -97,6 +108,24 @@ namespace ChatForLan
 
         private void bnSendMessage_Click(object sender, EventArgs e)
         {
+            _SendMessage();
+        }
+
+        private void rtSendMessage_KeyUp(object sender, KeyEventArgs e)
+        {
+            ///
+            //При нажатии ENTER сообщение будет отправлено, если в это время нажата клавиша CTRL просто курсор перейдет на новую строку 
+            ///
+            if (e.KeyCode == Keys.Enter && !e.Control) {
+                _SendMessage();
+            }
+        }
+
+        /// <summary>
+        /// Функция подготовки сообщения для отправки
+        /// </summary>
+        private void _SendMessage ()
+        {
             if (rtSendMessage.Text == "") return;
             String _message = "MSG:$" + GetName() + " : " + rtSendMessage.Text;
             rtReceiveMessage.AppendText(GetName() + " : " + rtSendMessage.Text + "\n");
@@ -104,21 +133,24 @@ namespace ChatForLan
             string _user = lvUsers.SelectedItems[0].Text;
             if (_user.Length > 1)
             {
-                string _ipaddr;
+                string _ipaddr = "";
                 IPAddress[] _ipaddrs = Dns.GetHostEntry(_user).AddressList;
-                if (_ipaddrs.Length > 1)
-                {
-                    _ipaddr = _ipaddrs[1].ToString();
-                }
-                else
-                {
-                    _ipaddr = _ipaddrs[0].ToString();
+                foreach (IPAddress _oneaddr in _ipaddrs){
+                    if (_oneaddr.AddressFamily == AddressFamily.InterNetwork) {
+                        _ipaddr = _oneaddr.ToString ();
+                    }
                 }
                 MulticastSend(_ipaddr, MCASTPORT, _message);
                 rtSendMessage.Text = "";
             }
         }
 
+        /// <summary>
+        /// Функция отправки сообщения
+        /// </summary>
+        /// <param name="mAddress"></param>
+        /// <param name="port"></param>
+        /// <param name="message"></param>
         private void MulticastSend(string mAddress, int port, string message)
         {
             try
@@ -137,12 +169,17 @@ namespace ChatForLan
             }
         }
 
+        /// <summary>
+        /// Слушаем сеть и в случае приема сообщения разбираем его
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="port"></param>
         private void Receive(string address, int port)
         {
             Socket _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             IPEndPoint _ipendp = new IPEndPoint(IPAddress.Any, port);
             _socket.Bind(_ipendp);
-            IPAddress _ipaddr = IPAddress.Parse(address);
+            //IPAddress _ipaddr = IPAddress.Parse(address);
             IsThreadRunning = true;
             while (IsThreadRunning)
             {
@@ -189,19 +226,23 @@ namespace ChatForLan
                 else if (_receivestr.StartsWith("MSG:"))
                 {
                     _receivestr = _receivestr.Replace("MSG:$", "");
-                    //int start = this.rtReceiveMessage.TextLength;
-                    //int length = _receivestr.IndexOf(':');
+                    int start = this.rtReceiveMessage.TextLength;
+                    int length = _receivestr.IndexOf(':');
                     rtReceiveMessage.AppendText(_receivestr + "\n");
-                    //if (start >= 0 && start < rtReceiveMessage.TextLength && length > 0 && length + start < rtReceiveMessage.TextLength)
-                    //{
-                    //    this.rtReceiveMessage.Select(start, length);
-                    //    this.rtReceiveMessage.SelectionColor = Color.Blue;
-                    //    this.rtReceiveMessage.SelectionLength = 0;
-                    //}
+                    if (start >= 0 && start < rtReceiveMessage.TextLength && length > 0 && length + start < rtReceiveMessage.TextLength)
+                    {
+                        this.rtReceiveMessage.Select(start, length);
+                        this.rtReceiveMessage.SelectionColor = Color.Blue;
+                        this.rtReceiveMessage.SelectionLength = 0;
+                    }
                 }
             }
         }
 
+        /// <summary>
+        /// Получаем название машины, оно станет именем пользователя
+        /// </summary>
+        /// <returns></returns>
         private string GetName()
         {
             return Environment.MachineName;
@@ -209,9 +250,13 @@ namespace ChatForLan
 
         private void frmMain_FormClosing(object sender, FormClosingEventArgs e)
         {
+            ///
+            //При закрытии чата посылаем сообщение всем о нашем уходе и выключаем слушатель
+            ///
             IsThreadRunning = false;
             String message = "Stop$" + GetName();
             MulticastSend(MCASTADDR, MCASTPORT, message);
         }
+
     }
 }
