@@ -175,12 +175,8 @@ namespace ChatForLan
             if (lvUsers.Items.Count == 0) return; 
             String _message = "MSG:$" + GetName() + " : " + rtSendMessage.Text;
             rtReceiveMessage.AppendText(GetName() + " : " + rtSendMessage.Text + "\n");
-<<<<<<< HEAD
             if (lvUsers.SelectedItems.Count > 0)
-=======
-            string _user = lvUsers.SelectedItems[0].Text;
-            if (_user.Length > 1)
->>>>>>> origin/master
+
             {
                 string _user = lvUsers.SelectedItems[0].Text;
                 string _ipaddr = "";
