@@ -10,44 +10,57 @@ using System.Net.Sockets;
 using System.Collections;
 using System.Threading;
 
+///////////////////////////////////////////////////////////////////////
+/// Для упрощения используется широковещательный адрес, сеть IPv4, 
+/// предполагается наличие 1 сетевого адаптера с серым IP адресом
+/// Также выбран порт и если другая программа его заняла чат не будет
+/// запущен.
+///
+
 namespace ChatForLan
 {
     public partial class frmMain : Form
     {
-        const string MCASTADDR = "255.255.255.255";
-        const int MCASTPORT = 32760;
-        string MYIPADDR;
-        
-        ArrayList userList = new ArrayList(); //Список для хранения и управления именами пользователей
-        bool IsThreadRunning = false; //Переменная управляющая потоком слушателя
-        
-        Thread _listener; //Переменная класса для создания отдельного потока для слушателя сети
+        const string MCASTADDR = "255.255.255.255"; // Широковещательный адрес
+        const int MCASTPORT = 32760;                // Порт для UDP сокета
+        string MYIPADDR;                            // Наш адрес
 
-        //Делегаты для изменения списка пользователя
+        // Список для хранения и управления именами пользователей
+        ArrayList userList = new ArrayList(); 
+      
+        // Переменная управляющая потоком слушателя
+        bool IsThreadRunning = false;               
+        
+        // Переменная класса для создания отдельного потока для слушателя сети
+        Thread _listener;                          
+
+        // Делегаты для изменения списка пользователя и вывода принятого сообщения
         public delegate void AddListItem(string name); 
-        public delegate void RemoveListItem(string name);
-        //Переменные на основе делегатов
+        public delegate void RemoveListItem(int index);
+        public delegate void ReceivedMessage(string message);
+        // Переменные на основе делегатов
         public AddListItem myAddListItem;
         public RemoveListItem myRemoveListItem;
+        public ReceivedMessage myReceivedMessage;
 
         public frmMain()
         {
             InitializeComponent();
-            //Присвоим переменным делегатам реальные функции
-            myAddListItem = new AddListItem(AddListItemMethod); 
-            myRemoveListItem = new RemoveListItem(RemoveListItemMethod);
 
-            //Узнаем свой адрес в сети
+            // Узнаем свой адрес в сети
+            // Сетевой адаптер должен быть корректно настроен
+            // dnslookup должен выдавать на имя компьютера его
+            // ip адрес
             IPAddress[] _ipaddrs = Dns.GetHostEntry(GetName()).AddressList;
             foreach (IPAddress _oneaddr in _ipaddrs) {
                 if (_oneaddr.AddressFamily == AddressFamily.InterNetwork) {
                     MYIPADDR = _oneaddr.ToString();
                 }
             }
-            //Создаем и запускам отдельный поток-слушатель сети
+            // Создаем и запускам отдельный поток-слушатель сети
             _listener = new Thread(new ThreadStart(_ReceiveWorker));
             _listener.Start();
-            //Отправляем широковещательное сообщение о нашем появлении в сети
+            // Отправляем широковещательное сообщение о нашем появлении в сети
             string message = "Hello$" + GetName();
             MulticastSend(MCASTADDR, MCASTPORT, message);
         }
@@ -57,6 +70,11 @@ namespace ChatForLan
         /// Функция передается в ThreadStart
         /// </summary>
         private void _ReceiveWorker() {
+            //Присвоим переменным делегатам реальные функции
+            myAddListItem = new AddListItem(AddListItemMethod);
+            myRemoveListItem = new RemoveListItem(RemoveListItemMethod);
+            myReceivedMessage = new ReceivedMessage(PrintReceivedMessage);
+
             Receive(MYIPADDR, MCASTPORT);
         }
 
@@ -82,17 +100,41 @@ namespace ChatForLan
         /// Удаление пользователя из списка пользователей чата
         /// </summary>
         /// <param name="name"></param>
-        void RemoveListItemMethod(string name)
+        void RemoveListItemMethod(int index)
         {
             if (lvUsers.InvokeRequired)
             {
-                Invoke(myRemoveListItem, new object[] { name });
+                Invoke(myRemoveListItem, new object[] { index });
             }
             else
             {
-                rtReceiveMessage.AppendText(name + " уходит" + "\n");
-                int _idxuser = userList.IndexOf(name);
-                if (_idxuser > 0) lvUsers.Items.RemoveAt(_idxuser);
+                rtReceiveMessage.AppendText(userList[index] + " уходит" + "\n");
+                lvUsers.Items.RemoveAt(index);
+            }
+        }
+
+        /// <summary>
+        /// Вывод принятого сообщения в окне чата
+        /// </summary>
+        /// <param name="message"></param>
+        void PrintReceivedMessage(string message) {
+            if (rtReceiveMessage.InvokeRequired)
+            {
+                Invoke(myReceivedMessage, new object[] { message });
+            }
+            else
+            {
+                int start = this.rtReceiveMessage.TextLength;
+                int length = message.IndexOf(':');
+                rtReceiveMessage.AppendText(message + "\n");
+
+                // Подкрасим принятое сообщение чтобы отделить его от наших
+                if (start >= 0 && start < rtReceiveMessage.TextLength && length > 0 && length + start < rtReceiveMessage.TextLength)
+                {
+                    this.rtReceiveMessage.Select(start, length);
+                    this.rtReceiveMessage.SelectionColor = Color.Blue;
+                    this.rtReceiveMessage.SelectionLength = 0;
+                }
             }
         }
 
@@ -114,7 +156,8 @@ namespace ChatForLan
         private void rtSendMessage_KeyUp(object sender, KeyEventArgs e)
         {
             ///
-            //При нажатии ENTER сообщение будет отправлено, если в это время нажата клавиша CTRL просто курсор перейдет на новую строку 
+            //При нажатии ENTER сообщение будет отправлено, 
+            //если в это время нажата клавиша CTRL просто курсор перейдет на новую строку 
             ///
             if (e.KeyCode == Keys.Enter && !e.Control) {
                 _SendMessage();
@@ -127,20 +170,30 @@ namespace ChatForLan
         private void _SendMessage ()
         {
             if (rtSendMessage.Text == "") return;
+            // Проверим есть ли кто нибудь вообще в сети, 
+            // если список пуст нет смысла в посылке сообщения
+            if (lvUsers.Items.Count == 0) return; 
             String _message = "MSG:$" + GetName() + " : " + rtSendMessage.Text;
             rtReceiveMessage.AppendText(GetName() + " : " + rtSendMessage.Text + "\n");
-            if (lvUsers.SelectedItems.Count == 0) return;
-            string _user = lvUsers.SelectedItems[0].Text;
-            if (_user.Length > 1)
+            if (lvUsers.SelectedItems.Count > 0)
             {
+                string _user = lvUsers.SelectedItems[0].Text;
                 string _ipaddr = "";
                 IPAddress[] _ipaddrs = Dns.GetHostEntry(_user).AddressList;
-                foreach (IPAddress _oneaddr in _ipaddrs){
-                    if (_oneaddr.AddressFamily == AddressFamily.InterNetwork) {
-                        _ipaddr = _oneaddr.ToString ();
+                foreach (IPAddress _oneaddr in _ipaddrs)
+                {
+                    if (_oneaddr.AddressFamily == AddressFamily.InterNetwork)
+                    {
+                        _ipaddr = _oneaddr.ToString();
                     }
                 }
+                // Если выбран пользователь то посылаем сообщение только ему на его IP адрес
                 MulticastSend(_ipaddr, MCASTPORT, _message);
+                rtSendMessage.Text = "";
+            }
+            else {
+                // Если ни один пользователь не выбран посылаем сообщение на широковещательный адрес
+                MulticastSend(MCASTADDR, MCASTPORT, _message);
                 rtSendMessage.Text = "";
             }
         }
@@ -179,7 +232,6 @@ namespace ChatForLan
             Socket _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             IPEndPoint _ipendp = new IPEndPoint(IPAddress.Any, port);
             _socket.Bind(_ipendp);
-            //IPAddress _ipaddr = IPAddress.Parse(address);
             IsThreadRunning = true;
             while (IsThreadRunning)
             {
@@ -218,7 +270,8 @@ namespace ChatForLan
                     {
                         if (userList.Contains(array[1]))
                         {
-                            myRemoveListItem(array[1]);
+                            int _idxuser = userList.IndexOf(array[1]);
+                            myRemoveListItem(_idxuser);
                             userList.Remove(array[1]);
                         }
                     }
@@ -226,15 +279,7 @@ namespace ChatForLan
                 else if (_receivestr.StartsWith("MSG:"))
                 {
                     _receivestr = _receivestr.Replace("MSG:$", "");
-                    int start = this.rtReceiveMessage.TextLength;
-                    int length = _receivestr.IndexOf(':');
-                    rtReceiveMessage.AppendText(_receivestr + "\n");
-                    if (start >= 0 && start < rtReceiveMessage.TextLength && length > 0 && length + start < rtReceiveMessage.TextLength)
-                    {
-                        this.rtReceiveMessage.Select(start, length);
-                        this.rtReceiveMessage.SelectionColor = Color.Blue;
-                        this.rtReceiveMessage.SelectionLength = 0;
-                    }
+                    myReceivedMessage(_receivestr);
                 }
             }
         }
